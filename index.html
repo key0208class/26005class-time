@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雲教室計時器v1.0.2</title>
+    <title>雲教室計時器v1.0.3</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&family=Orbitron:wght@700&display=swap');
         
@@ -291,6 +291,9 @@
             };
             
             const renderPresets = () => {
+                // 【v1.0.3 更新】在渲染前，先依據總秒數由小到大排序
+                presets.sort((a, b) => (a.minutes * 60 + a.seconds) - (b.minutes * 60 + b.seconds));
+
                 while (presetsGrid.children.length > 1) { presetsGrid.removeChild(presetsGrid.firstChild); }
                 presets.forEach((preset, index) => {
                     const btn = document.createElement('button');
@@ -299,7 +302,13 @@
                     btn.addEventListener('click', (e) => {
                         if (e.target.classList.contains('delete-preset')) {
                             e.stopPropagation();
-                            if (confirm(`確定要刪除「${preset.label}」嗎？`)) { presets.splice(index, 1); saveData(); renderPresets(); }
+                            // 修正：刪除時要找到排序後正確的 preset 來顯示確認訊息
+                            const originalIndex = presets.findIndex(p => p.label === preset.label && p.minutes === preset.minutes && p.seconds === preset.seconds);
+                            if (confirm(`確定要刪除「${preset.label}」嗎？`)) { 
+                                presets.splice(originalIndex, 1); 
+                                saveData(); 
+                                renderPresets(); 
+                            }
                         } else { startTimer(preset); }
                     });
                     presetsGrid.insertBefore(btn, addPresetBtn);
