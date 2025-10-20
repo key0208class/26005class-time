@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雲教室計時器v1.0.2</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&family=Orbitron:wght@700&display=swap');
+        
+        :root {
+            --primary-color: #0A84FF;
+            --success-color: #30D158;
+            --danger-color: #FF453A;
+            --warning-color: #FFD60A;
+            --card-bg: rgba(28, 28, 30, 0.75); 
+            --card-border: rgba(255, 255, 255, 0.15); 
+            --text-color-primary: rgba(255, 255, 255, 0.95); 
+            --text-color-secondary: rgba(235, 235, 245, 0.6); 
+            --input-bg: rgba(0, 0, 0, 0.3);
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --control-border-radius: 14px;
+            --timer-glow-color: #00ffff;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            color: var(--text-color-primary);
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+            background-image: url('https://class.kh.edu.tw/sites/30033/upload_file/4/%E5%A4%9C%E6%99%9A%E5%9C%B0%E7%90%83.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        .app-screen { 
+            display: none; 
+            padding: 20px; 
+            width: 100%; 
+            height: 100%; 
+            overflow-y: auto; 
+            align-items: center; 
+            padding-top: 150px;
+            justify-content: flex-start;
+            position: relative; 
+            z-index: 1; 
+        }
+        .app-screen.active { display: flex; flex-direction: column; animation: screenFadeIn 0.5s ease; }
+        @keyframes screenFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 【使用者修改 #1】時鐘位置調整 */
+        /* 說明: 此處控制時鐘的位置，您可以修改 top 和 right 的數值來改變它與螢幕右上角的距離 */
+        .digital-clock-container {
+            position: absolute;
+            top: 30px; /* 距離螢幕頂部 30px */
+            right: 30px; /* 距離螢幕右側 30px */
+            /* left: 50%; transform: translateX(-50%); 已移除置中設定 */
+            z-index: 100;
+            background-color: rgba(0, 20, 40, 0.5);
+            border: 2px solid #00ffff;
+            border-radius: 20px;
+            padding: 10px 30px;
+            box-shadow: 0 0 15px #00ffff, inset 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        .digital-clock {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2em, 4vw, 2.5em); /* 稍微縮小以適應角落 */
+            color: #ffffff;
+            font-weight: 700;
+            text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #00ffff, 0 0 40px #00ffff;
+        }
+
+        .container { max-width: 800px; width: 100%; }
+        .header { text-align: center; margin-bottom: 30px; }
+        h1 { font-weight: 700; font-size: 2.5em; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+        
+        .card { background: var(--card-bg); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border-radius: 24px; border: 1px solid var(--card-border); box-shadow: 0 15px 50px 0 var(--shadow-color); padding: 35px; }
+        h2 { font-weight: 600; color: var(--text-color-primary); margin: 0 0 20px; font-size: 1.5em; }
+        
+        button, input { border: none; font-weight: 600; cursor: pointer; transition: all 0.3s ease; border-radius: var(--control-border-radius) !important; padding: 14px 20px; }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-secondary { background: rgba(255,255,255,0.15); color: var(--text-color-primary); }
+        .btn-danger { background: var(--danger-color); color: white; font-size: 1em; padding: 5px 10px; }
+        
+        #presets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        .preset-btn { background: var(--input-bg); color: var(--text-color-primary); font-size: 1.1em; padding: 25px; text-align: center; position: relative; }
+        .preset-btn .time { font-size: 1.5em; font-weight: 700; display: block; }
+        .preset-btn .label { font-size: 0.9em; color: var(--text-color-secondary); }
+        .preset-btn .delete-preset { position: absolute; top: 8px; right: 8px; opacity: 0.5; }
+        .preset-btn .delete-preset:hover { opacity: 1; transform: scale(1.1); }
+        #add-preset-btn { border: 2px dashed rgba(255,255,255,0.2); background: none; font-size: 2em; }
+
+        .io-buttons { display: flex; gap: 15px; margin-top: 20px; border-top: 1px solid var(--card-border); padding-top: 20px; }
+        .io-buttons button { flex: 1; }
+        
+        #timer-screen { text-align: center; position: fixed; top: 0; left: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); }
+        
+        #timer-display { font-family: 'Inter', monospace; font-size: clamp(5em, 25vw, 15em); font-weight: 900; line-height: 1; color: var(--text-color-primary); text-shadow: 0 5px 30px rgba(0,0,0,0.5); transition: text-shadow 0.5s linear; }
+        #timer-label { font-size: clamp(1.5em, 5vw, 2.5em); margin-bottom: 20px; color: var(--text-color-secondary); text-shadow: 0 2px 10px #000; }
+        
+        /* 【使用者修改 #2】倒數計時數字位置調整 */
+        /* 說明: progress-container 現在是 flex 容器，會自動將其內的 .timer-content 垂直水平置中 */
+        #progress-container { 
+            position: absolute; top: 50%; left: 50%; 
+            width: 90%; height: 90%; 
+            transform: translate(-50%, -50%); 
+            z-index: 0; /* 調整 z-index */
+            filter: drop-shadow(0 0 25px var(--timer-glow-color)); 
+            /* 延長過渡時間，讓顏色變化更像漸層 */
+            transition: filter 2.5s linear;
+            /* Flex 屬性，用於置中內容 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .progress-ring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .progress-ring circle { fill: transparent; stroke-width: 4; }
+        #progress-ring-bg { stroke: rgba(255, 255, 255, 0.1); }
+        #progress-ring-circle { 
+            stroke: var(--timer-glow-color); 
+            stroke-linecap: round; 
+            transform: rotate(-90deg); 
+            transform-origin: center; 
+            /* 延長過渡時間，讓顏色變化更像漸層 */
+            transition: stroke-dashoffset 1s linear, stroke 2.5s linear; 
+        }
+
+        .footer-buttons { position: absolute; bottom: 5vh; right: 5vh; display: flex; gap: 15px; align-items: center; }
+        #exit-timer-btn, #fullscreen-btn, #pause-resume-btn { background: rgba(255,255,255,0.1); color: white; width: 50px; height: 50px; padding: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        #exit-timer-btn svg, #fullscreen-btn svg, #pause-resume-btn svg { width: 100%; height: 100%; fill: white; }
+        .icon-contract, .icon-play { display: none; }
+
+        #add-preset-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease; }
+        #add-preset-modal.visible { display: flex; opacity: 1; }
+        .modal-card { max-width: 400px; width: 90%; transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        #add-preset-modal.visible .modal-card { transform: scale(1); }
+        .control-group label { display: block; color: var(--text-color-secondary); font-weight: 500; font-size: 0.9em; margin-bottom: 8px; }
+        .time-inputs { display: flex; gap: 10px; }
+        .time-inputs .control-group { flex: 1; }
+        input[type="text"], input[type="number"] { font-family: inherit; font-size: 1em; width: 100%; background: var(--input-bg); color: var(--text-color-primary); border: 1px solid rgba(255,255,255,0.1); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 25px; }
+    </style>
+</head>
+<body>
+    
+    <div id="setup-screen" class="app-screen active">
+        <div class="digital-clock-container">
+            <div id="clock-setup" class="digital-clock"></div>
+        </div>
+        <div class="container">
+            <div class="header"><h1>課堂計時器</h1></div>
+            <div class="card">
+                <h2>選擇一個計時器或新增</h2>
+                <div id="presets-grid"><button id="add-preset-btn" title="新增預設">+</button></div>
+                <div class="io-buttons">
+                    <button id="import-btn" class="btn-secondary">⚙️ 匯入設定</button>
+                    <button id="export-btn" class="btn-secondary">📦 匯出設定</button>
+                </div>
+                <input type="file" id="import-file-input" accept=".json" style="display: none;">
+            </div>
+        </div>
+    </div>
+    
+    <div id="timer-screen" class="app-screen">
+        <div class="digital-clock-container">
+            <div id="clock-timer" class="digital-clock"></div>
+        </div>
+        <div id="progress-container">
+            <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle id="progress-ring-bg" cx="50" cy="50" r="45"/>
+                <circle id="progress-ring-circle" cx="50" cy="50" r="45"/>
+            </svg>
+            <div class="timer-content">
+                <h2 id="timer-label"></h2>
+                <div id="timer-display"></div>
+            </div>
+        </div>
+        <div class="footer-buttons">
+            <button id="pause-resume-btn" title="暫停/繼續">
+                <svg class="icon-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button id="exit-timer-btn" title="結束倒數">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <button id="fullscreen-btn" title="全螢幕">
+                <svg class="icon-expand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                <svg class="icon-contract" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="add-preset-modal">
+        <div class="card modal-card">
+            <h2>新增計時器</h2>
+            <div class="control-group" style="margin-bottom: 15px;">
+                <label for="preset-label-input">任務標籤</label>
+                <input type="text" id="preset-label-input" placeholder="例如：小組討論">
+            </div>
+            <div class="time-inputs">
+                <div class="control-group">
+                    <label for="preset-minutes-input">分鐘</label>
+                    <input type="number" id="preset-minutes-input" value="5" min="0">
+                </div>
+                <div class="control-group">
+                    <label for="preset-seconds-input">秒數</label>
+                    <input type="number" id="preset-seconds-input" value="0" min="0" max="59">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-add-btn" class="btn-secondary" style="flex: 1;">取消</button>
+                <button id="confirm-add-btn" class="btn-primary" style="flex: 1;">確認新增</button>
+            </div>
+        </div>
+    </div>
+
+    <audio id="start-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-interface-hint-notification-911.mp3" preload="auto"></audio>
+    <audio id="countdown-sound" src="https://taira-komori.net/sound_os2/electric01/clock3.mp3" preload="auto"></audio>
+    <audio id="alarm-sound" src="https://taira-komori.net/sound_os2/daily01/door_chime2.mp3" preload="auto"></audio>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const screens = { setup: document.getElementById('setup-screen'), timer: document.getElementById('timer-screen') };
+            const presetsGrid = document.getElementById('presets-grid');
+            const addPresetBtn = document.getElementById('add-preset-btn');
+            const timerDisplay = document.getElementById('timer-display');
+            const timerLabel = document.getElementById('timer-label');
+            const exitTimerBtn = document.getElementById('exit-timer-btn');
+            const progressRingCircle = document.getElementById('progress-ring-circle');
+            const startSound = document.getElementById('start-sound');
+            const countdownSound = document.getElementById('countdown-sound');
+            const alarmSound = document.getElementById('alarm-sound');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const iconExpand = fullscreenBtn.querySelector('.icon-expand');
+            const iconContract = fullscreenBtn.querySelector('.icon-contract');
+            const pauseResumeBtn = document.getElementById('pause-resume-btn');
+            const clockSetupEl = document.getElementById('clock-setup');
+            const clockTimerEl = document.getElementById('clock-timer');
+            const importBtn = document.getElementById('import-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const importFileInput = document.getElementById('import-file-input');
+            const root = document.documentElement;
+            const addPresetModal = document.getElementById('add-preset-modal');
+            const presetLabelInput = document.getElementById('preset-label-input');
+            const presetMinutesInput = document.getElementById('preset-minutes-input');
+            const presetSecondsInput = document.getElementById('preset-seconds-input');
+            const cancelAddBtn = document.getElementById('cancel-add-btn');
+            const confirmAddBtn = document.getElementById('confirm-add-btn');
+            
+            // Constants and State
+            const radius = progressRingCircle.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            let presets = []; 
+            let timerInterval = null; 
+            let totalSeconds = 0;
+            let remainingSeconds = 0;
+            let isPaused = false;
+
+            /* 【使用者修改 #3】呼吸鐘漸層顏色與頻率調整 */
+            /* 說明: 1. 修改下方陣列中的色碼，可以自訂光環的顏色變化順序。 */
+            /* 2. 顏色變化的頻率在下方的 startTimer 函式中修改。 */
+            const glowColors = [
+                '#00ffff', '#00ffaa', '#30D158', '#aaff00', 
+                '#FFD60A', '#FF9500', '#FF453A', '#ff00ff', 
+                '#8A2BE2', '#4169E1'
+            ];
+
+            const updateClock = () => {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('en-GB');
+                clockSetupEl.textContent = timeString;
+                clockTimerEl.textContent = timeString;
+            };
+
+            // 【版本更新 #2】更新 localStorage 的 key
+            const saveData = () => localStorage.setItem('classroomTimerPresets_v7_7', JSON.stringify(presets));
+            const loadData = () => { 
+                const data = localStorage.getItem('classroomTimerPresets_v7_7'); 
+                if (data) { presets = JSON.parse(data); } 
+                else { 
+                    presets = [ 
+                        { label: "事前準備", minutes: 3, seconds: 0 },
+                        { label: "小組討論", minutes: 5, seconds: 0 }, 
+                        { label: "安靜閱讀", minutes: 15, seconds: 0 }, 
+                        { label: "快速思考", minutes: 0, seconds: 30 } 
+                    ]; 
+                } 
+                renderPresets(); 
+            };
+            
+            const renderPresets = () => {
+                while (presetsGrid.children.length > 1) { presetsGrid.removeChild(presetsGrid.firstChild); }
+                presets.forEach((preset, index) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'preset-btn';
+                    btn.innerHTML = `<span class="time">${String(preset.minutes).padStart(2, '0')}:${String(preset.seconds).padStart(2, '0')}</span><span class="label">${preset.label}</span><button class="btn-danger delete-preset" data-index="${index}">×</button>`;
+                    btn.addEventListener('click', (e) => {
+                        if (e.target.classList.contains('delete-preset')) {
+                            e.stopPropagation();
+                            if (confirm(`確定要刪除「${preset.label}」嗎？`)) { presets.splice(index, 1); saveData(); renderPresets(); }
+                        } else { startTimer(preset); }
+                    });
+                    presetsGrid.insertBefore(btn, addPresetBtn);
+                });
+            };
+
+            const addPreset = () => {
+                const label = presetLabelInput.value.trim();
+                const minutes = parseInt(presetMinutesInput.value, 10);
+                const seconds = parseInt(presetSecondsInput.value, 10);
+                if (!label || isNaN(minutes) || isNaN(seconds)) { alert('請輸入有效的標籤和時間！'); return; }
+                presets.push({ label, minutes, seconds }); saveData(); renderPresets(); closeModal();
+            };
+
+            const showModal = () => { presetLabelInput.value = ''; presetMinutesInput.value = 5; presetSecondsInput.value = 0; addPresetModal.classList.add('visible'); };
+            const closeModal = () => addPresetModal.classList.remove('visible');
+            const switchScreen = (screenName) => { Object.values(screens).forEach(s => s.classList.remove('active')); screens[screenName].classList.add('active'); };
+
+            const startTimer = (preset) => {
+                clearInterval(timerInterval);
+                totalSeconds = preset.minutes * 60 + preset.seconds;
+                remainingSeconds = totalSeconds;
+                timerLabel.textContent = preset.label;
+                isPaused = false;
+                updatePauseButtonIcon();
+                startSound.play();
+                
+                updateGlowColor(0);
+                updateDisplay();
+                switchScreen('timer');
+                
+                timerInterval = setInterval(() => {
+                    if(isPaused) return;
+
+                    remainingSeconds--;
+                    
+                    const elapsedSeconds = totalSeconds - remainingSeconds;
+                    /* 【使用者修改 #3】呼吸鐘漸層顏色與頻率調整 */
+                    /* 說明: 修改下方的 15 這個數字，可以決定光環每幾秒變化一次顏色 */
+                    if (elapsedSeconds > 0 && elapsedSeconds % 15 === 0) {
+                        updateGlowColor(elapsedSeconds);
+                    }
+                    
+                    updateDisplay();
+                    
+                    if (remainingSeconds < 0) {
+                        finishTimer();
+                    }
+                }, 1000);
+            };
+
+            const updateDisplay = () => {
+                if (remainingSeconds < 0) return;
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                
+                const progress = Math.max(0, remainingSeconds / totalSeconds);
+                progressRingCircle.style.strokeDashoffset = circumference * (1 - progress);
+                
+                if (remainingSeconds === 10) { 
+                    countdownSound.play(); 
+                }
+            };
+            
+            const updateGlowColor = (elapsedSeconds) => {
+                if (elapsedSeconds === 0) {
+                    root.style.setProperty('--timer-glow-color', glowColors[0]);
+                    return;
+                }
+                const step = Math.floor(elapsedSeconds / 15);
+                const colorIndex = (step - 1) % glowColors.length;
+                const color = glowColors[colorIndex];
+                root.style.setProperty('--timer-glow-color', color);
+            };
+
+            const finishTimer = () => { 
+                clearInterval(timerInterval); 
+                countdownSound.pause();
+                countdownSound.currentTime = 0;
+
+                timerDisplay.textContent = "00:00"; 
+                root.style.setProperty('--timer-glow-color', 'var(--success-color)');
+                alarmSound.play(); 
+                setTimeout(() => { exitTimer(); }, 4000); 
+            };
+            
+            const stopAllSounds = () => {
+                startSound.pause(); startSound.currentTime = 0;
+                countdownSound.pause(); countdownSound.currentTime = 0;
+                alarmSound.pause(); alarmSound.currentTime = 0;
+            };
+
+            const exitTimer = () => { 
+                clearInterval(timerInterval); 
+                stopAllSounds();
+                switchScreen('setup'); 
+            };
+
+            const togglePause = () => {
+                isPaused = !isPaused;
+                updatePauseButtonIcon();
+            };
+
+            const updatePauseButtonIcon = () => {
+                const iconPause = pauseResumeBtn.querySelector('.icon-pause');
+                const iconPlay = pauseResumeBtn.querySelector('.icon-play');
+                if (isPaused) {
+                    iconPause.style.display = 'none';
+                    iconPlay.style.display = 'block';
+                } else {
+                    iconPause.style.display = 'block';
+                    iconPlay.style.display = 'none';
+                }
+            };
+            
+            const exportPresets = () => {
+                const dataStr = JSON.stringify(presets, null, 2);
+                const dataBlob = new Blob([dataStr], {type: "application/json"});
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.download = 'timer-presets.json';
+                link.href = url;
+                link.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const importPresets = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedPresets = JSON.parse(e.target.result);
+                        if (Array.isArray(importedPresets) && importedPresets.every(p => 'label' in p && 'minutes' in p && 'seconds' in p)) {
+                            if(confirm('這將會覆蓋您目前的預設設定，確定要匯入嗎？')) {
+                                presets = importedPresets;
+                                saveData();
+                                renderPresets();
+                                alert('設定匯入成功！');
+                            }
+                        } else { alert('檔案格式不正確！'); }
+                    } catch (error) { alert('讀取檔案失敗，請確認是否為正確的 JSON 檔案。'); } 
+                    finally { importFileInput.value = ''; }
+                };
+                reader.readAsText(file);
+            };
+
+            const toggleFullScreen = () => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen?.(); } else { document.exitFullscreen?.(); } };
+            const updateFullscreenIcon = () => { if(document.fullscreenElement) { iconExpand.style.display = 'none'; iconContract.style.display = 'block'; } else { iconExpand.style.display = 'block'; iconContract.style.display = 'none'; } };
+
+            // Initial Setup
+            progressRingCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+            progressRingCircle.style.strokeDashoffset = circumference;
+            
+            // Event Listeners
+            addPresetBtn.addEventListener('click', showModal);
+            cancelAddBtn.addEventListener('click', closeModal);
+            confirmAddBtn.addEventListener('click', addPreset);
+            exitTimerBtn.addEventListener('click', exitTimer);
+            fullscreenBtn.addEventListener('click', toggleFullScreen);
+            document.addEventListener('fullscreenchange', updateFullscreenIcon);
+            pauseResumeBtn.addEventListener('click', togglePause);
+            exportBtn.addEventListener('click', exportPresets);
+            importBtn.addEventListener('click', () => importFileInput.click());
+            importFileInput.addEventListener('change', importPresets);
+            
+            // Start Clock and Load Data
+            setInterval(updateClock, 1000);
+            updateClock();
+            loadData();
+        });
+    </script>
+</body>
+</html>
